@@ -8,7 +8,6 @@ class Cartoonize : public Algorithm
 public:
     void process(const Parameters &params, const Image &src, Image &dst);
 
-private:
     double** createMatrix(int height, int width);
 
     // Bilateral Filter

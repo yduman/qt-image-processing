@@ -6,11 +6,9 @@
 #include "algorithms/LucyOMP.h"
 #include "algorithms/Cartoonize.h"
 #include "algorithms/CartoonizeOMP.h"
-
 #include "algorithms/Parameters.h"
 
 #include <memory>
-
 #include <QApplication>
 #include <QLineEdit>
 #include <QLabel>
@@ -23,9 +21,6 @@ int main(int argc, char **argv) {
 
     // Create main window
     MainWindow window(params);
-
-
-
 
 
     // instantiate algorithms
@@ -47,9 +42,6 @@ int main(int argc, char **argv) {
     window.addAlgorithm("LucyOMP", lucyomp.get());
     window.addAlgorithm("Cartoonize", cartoonize.get());
     window.addAlgorithm("CartoonizeOMP", cartoonizeomp.get());
-
-
-
 
 
 
@@ -101,8 +93,6 @@ int main(int argc, char **argv) {
     QLineEdit *lineEdit_tau = window.addDoubleLineEdit("Tau Cartoonizer:");
     lineEdit_tau->setText(QString::number(params.tau));
     MainWindow::connect(lineEdit_tau, SIGNAL(textChanged(const QString&)), &params, SLOT(setTau(QString)));
-
-
 
 
 

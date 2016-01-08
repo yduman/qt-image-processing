@@ -93,7 +93,7 @@ bool CartoonizeOMP::isInRange(int size, int y, int x, const int height, const in
 double** CartoonizeOMP::initKernel(const Image &img, int y, int x) {
    int height = 0;
    int width = 0;
-   int range = kernelSize/2;
+   int range = kernelSize / 2;
 
    double** kernel = createMatrix(kernelSize, kernelSize);
 
@@ -139,6 +139,7 @@ Image CartoonizeOMP::bilFilter(const Image &img) {
    const int width = img.width();
    Image result = Image(height, width);
 
+#pragma omp parallel for
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
          if (!isInRange(kernelSize, y, x, height, width)) {
@@ -189,6 +190,7 @@ Image CartoonizeOMP::edgeStrength(Image &imgX, Image &imgY) {
    const int width  = min(imgX.width(), imgY.width());
    Image result = Image(height, width);
 
+#pragma omp parallel for
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
          result[y][x] = calcEdgeStrength(y, x, imgX, imgY);
@@ -202,6 +204,7 @@ Image CartoonizeOMP::edgeDetection(Image &img) {
    const int width = img.width();
    Image result = Image(height, width);
 
+#pragma omp parallel for
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
          result[y][x] = calcEdgeDetection(y, x, img);
@@ -292,6 +295,7 @@ Image CartoonizeOMP::binFilter(const Image &img, char op) {
    const int width = img.width();
    Image result = Image(height, width);
 
+#pragma omp parallel for
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
          if (!isInRange(3, y, x, height, width)) {
@@ -342,6 +346,7 @@ Image CartoonizeOMP::cartFilter(Image &bilateral, Image &binary) {
    const int width = min(bilateral.width(), binary.width());
    Image result = Image(height, width);
 
+#pragma omp parallel for
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
          const Pixel &pixBil = bilateral[y][x];

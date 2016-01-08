@@ -6,10 +6,10 @@
 using namespace std;
 using namespace std::chrono;
 
-int sigma_r;
-int sigma_d;
-int kernelSize;
-int tau;
+int sig_r;
+int sig_d;
+int kSize;
+int t;
 
 //************************************************************************
 // process
@@ -19,10 +19,10 @@ void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
    auto t1 = high_resolution_clock::now();
 
    // get vars
-   sigma_r = params.sigma_r;
-   sigma_d = params.sigma_d;
-   kernelSize = params.kernelSize;
-   tau = params.tau;
+   sig_r = params.sigma_r;
+   sig_d = params.sigma_d;
+   kSize = params.kernelSize;
+   t = params.tau;
 
    dst = src;
 
@@ -60,7 +60,7 @@ double Cartoonize::euklid(int r, int g, int b) {
 double Cartoonize::calcDomain(int y, int x, int k, int l) {
    double summand_lhs = pow((y - k), 2);
    double summand_rhs = pow((x - l), 2);
-   double dividend = 2 * pow(sigma_d, 2);
+   double dividend = 2 * pow(sig_d, 2);
    double result = -(summand_lhs + summand_rhs) / dividend;
 
    return exp(result);
@@ -76,7 +76,7 @@ double Cartoonize::calcEdge(const Image &img, int y, int x, int k, int l) {
    b = pix1.b - pix2.b;
 
    double numerator = pow(euklid(r, g, b), 2);
-   double denominator = 2 * pow(sigma_r, 2);
+   double denominator = 2 * pow(sig_r, 2);
    double result = -(numerator)/denominator;
 
    return exp(result);
@@ -93,9 +93,9 @@ bool Cartoonize::isInRange(int size, int y, int x, const int height, const int w
 double** Cartoonize::initKernel(const Image &img, int y, int x) {
    int height = 0;
    int width = 0;
-   int range = kernelSize/2;
+   int range = kSize / 2;
 
-   double** kernel = createMatrix(kernelSize, kernelSize);
+   double** kernel = createMatrix(kSize, kSize);
 
    for (int i = y - range; i < y + range; ++i) {
       for (int j = x - range; j < x + range; ++j) {
@@ -116,7 +116,7 @@ Pixel Cartoonize::bilKernel(const Image &img, int y, int x) {
    double denominator = 0.0;
    int height = 0;
    int width = 0;
-   int range = kernelSize / 2;
+   int range = kSize / 2;
 
    for (int i = y - range; i < y + range; ++i) {
       for (int j = x - range; j < x + range; ++j) {
@@ -141,7 +141,7 @@ Image Cartoonize::bilFilter(const Image &img) {
 
    for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
-         if (!isInRange(kernelSize, y, x, height, width)) {
+         if (!isInRange(kSize, y, x, height, width)) {
             result[y][x] = img[y][x];
             continue;
          } else {
@@ -177,9 +177,9 @@ Pixel Cartoonize::calcEdgeDetection(int y, int x, Image &img) {
    double r, g, b;
    const Pixel &pix = img[y][x];
 
-   r = tau >= pix.r ? pix.r : 0.0;
-   g = tau >= pix.g ? pix.g : 0.0;
-   b = tau >= pix.b ? pix.b : 0.0;
+   r = t >= pix.r ? pix.r : 0.0;
+   g = t >= pix.g ? pix.g : 0.0;
+   b = t >= pix.b ? pix.b : 0.0;
 
    return Pixel(r, g, b);
 }
