@@ -6,7 +6,7 @@ Parameters::Parameters()
    param2 = 1;
    param3 = 3.5;
    
-   lucyIterations = 20;
+   lucyIterations = 80;
    kernelSize = 15;
    sigma_d = 7;
    sigma_r = 23;

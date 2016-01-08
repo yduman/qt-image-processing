@@ -1,56 +1,37 @@
 #include "Lucy.h"
 
+#include <chrono>
+#include <iostream>
+
+
 void Lucy::process(const Parameters &params, const Image &src, Image &dst)
 {
-    clock_t start, end, runtime;
-    float duration;
-    start = clock();
+
+    auto t1 = std::chrono::high_resolution_clock::now();
 
     dst = src;
-
     const int n = params.lucyIterations;
     const int height = src.height();
     const int width = src.width();
     const int k = 51;
-    const int range = (51 - 1) / 2;
     Image u = Image(height, width);
     Image b = Image(height, width);
     Image d = Image(height, width);
+    double red, green, blue;
 
     for (int i = 1; i <= n; i++)
     {
         printf("Iteration %i of %i\n", i, n);
-        double red, green, blue;
-        double new_red, new_green, new_blue;
 
         // -------------------- FILTER -------------------- //
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                new_red = 0.0;
-                new_green = 0.0;
-                new_blue = 0.0;
-
-                for (int j = x - range; j <= x + range; j++) {
-                    if (j < 0 || j >= width) {
-                        red = 255.0;
-                        green = 255.0;
-                        blue = 255.0;
-                    } else {
-                        const Pixel &pixel = dst[y][j];
-                        red = pixel.r;
-                        green = pixel.g;
-                        blue = pixel.b;
-                    }
-
-                    new_red += red;
-                    new_green += green;
-                    new_blue += blue;
+                if (!isInRange(x, width)) {
+                    b[y][x] = Pixel(255.0 / k, 255.0 / k, 255.0 / k);
+                    continue;
                 }
+                b[y][x] = kernelOp(k, dst, y, x);
 
-                new_red = new_red / k;
-                new_blue = new_blue / k;
-                new_green = new_green / k;
-                b[y][x] = Pixel(new_red, new_green, new_blue);
             }
         }
 
@@ -70,31 +51,11 @@ void Lucy::process(const Parameters &params, const Image &src, Image &dst)
         // -------------------- FILTER -------------------- //
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                new_red = 0.0;
-                new_green = 0.0;
-                new_blue = 0.0;
-
-                for (int j = x - range; j <= x + range; j++) {
-                    if (j < 0 || j >= width) {
-                        red = 255.0;
-                        green = 255.0;
-                        blue = 255.0;
-                    } else {
-                        const Pixel &pixel = u[y][j];
-                        red = pixel.r;
-                        green = pixel.g;
-                        blue = pixel.b;
-                    }
-
-                    new_red += red;
-                    new_green += green;
-                    new_blue += blue;
+                if (!isInRange(x, width)) {
+                    d[y][x] = Pixel(255.0 / k, 255.0 / k, 255.0 / k);
+                    continue;
                 }
-
-                new_red = new_red / k;
-                new_blue = new_blue / k;
-                new_green = new_green / k;
-                d[y][x] = Pixel(new_red, new_green, new_blue);
+                d[y][x] = kernelOp(k, u, y, x);
             }
         }
 
@@ -112,8 +73,27 @@ void Lucy::process(const Parameters &params, const Image &src, Image &dst)
         }
     }
 
-    end = clock();
-    runtime = end - start;
-    duration = 1000 * (float)runtime / CLOCKS_PER_SEC;
-    printf("Dauer: %f ms\n", duration);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+    printf("\n *********** FINISHED *********** \n");
+    printf("ALGORITHM: RICHARDSON-LUCY\n");
+    std::cout << "RUNTIME: " << elapsed.count() << " ms" << std::endl;
+}
+
+bool Lucy::isInRange(int i, const int width) {
+    return !(i - 25 < 0 || i + 25 > width);
+}
+
+Pixel Lucy::kernelOp(double k, const Image &img, int y, int x) {
+    double r = 0.0;
+    double g = 0.0;
+    double b = 0.0;
+
+    for (int i = x - 25; i < x + 25; ++i) {
+        const Pixel &pixel = img[y][i];
+        r += pixel.r / k;
+        g += pixel.g / k;
+        b += pixel.b / k;
+    }
+    return Pixel(r, g, b);
 }
