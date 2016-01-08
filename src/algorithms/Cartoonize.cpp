@@ -1,8 +1,10 @@
 #include "Cartoonize.h"
 
-#include <ctime>
+#include <chrono>
+#include <iostream>
 
 using namespace std;
+using namespace std::chrono;
 
 int sigma_r;
 int sigma_d;
@@ -14,9 +16,7 @@ int tau;
 //************************************************************************
 void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
 {
-   clock_t start, end, runtime;
-   start = clock();
-   float duration;
+   auto t1 = high_resolution_clock::now();
 
    // get vars
    sigma_r = params.sigma_r;
@@ -30,11 +30,12 @@ void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
    Image binary = binTraverse(src);
    dst = cartFilter(bilateral, binary);
 
-   end = clock();
-   runtime = end - start;
-   duration = 1000 * (float)runtime / CLOCKS_PER_SEC;
-
-   printf("Dauer: %f ms\n", duration);
+   auto t2 = high_resolution_clock::now();
+   auto elapsed = duration_cast<milliseconds>(t2 - t1);
+   printf("\n *********** FINISHED *********** \n");
+   printf("ALGORITHM: CARTOONIZE\n");
+   cout << "RUNTIME: " << elapsed.count() << " ms" << endl;
+   cout << endl;
 }
 
 double** Cartoonize::createMatrix(int height, int width) {
@@ -46,11 +47,6 @@ double** Cartoonize::createMatrix(int height, int width) {
    }
 
    return ret;
-}
-
-void Cartoonize::destroyMatrix(double **matrix) {
-   free(*matrix);
-   free(matrix);
 }
 
 //************************************************************************

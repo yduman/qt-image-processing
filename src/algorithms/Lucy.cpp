@@ -3,11 +3,13 @@
 #include <chrono>
 #include <iostream>
 
+using namespace std;
+using namespace std::chrono;
 
 void Lucy::process(const Parameters &params, const Image &src, Image &dst)
 {
 
-    auto t1 = std::chrono::high_resolution_clock::now();
+    auto t1 = high_resolution_clock::now();
 
     dst = src;
     const int n = params.lucyIterations;
@@ -73,11 +75,12 @@ void Lucy::process(const Parameters &params, const Image &src, Image &dst)
         }
     }
 
-    auto t2 = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
-    printf("\n *********** FINISHED *********** \n");
-    printf("ALGORITHM: RICHARDSON-LUCY\n");
-    std::cout << "RUNTIME: " << elapsed.count() << " ms" << std::endl;
+   auto t2 = high_resolution_clock::now();
+   auto elapsed = duration_cast<milliseconds>(t2 - t1);
+   printf("\n *********** FINISHED *********** \n");
+   printf("ALGORITHM: RICHARDSON-LUCY\n");
+   cout << "RUNTIME: " << elapsed.count() << " ms" << endl;
+   cout << endl;
 }
 
 bool Lucy::isInRange(int i, const int width) {
