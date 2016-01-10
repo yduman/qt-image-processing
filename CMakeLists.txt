@@ -45,9 +45,6 @@ endif()
 add_executable(lab3
    src/algorithms/Algorithm.h
 
-   src/algorithms/Greenify.cpp
-   src/algorithms/Greenify.h
-
    src/algorithms/Lucy.cpp
    src/algorithms/Lucy.h
    src/algorithms/LucyOMP.cpp

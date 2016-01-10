@@ -3,19 +3,24 @@
 #include <chrono>
 #include <iostream>
 
+// Autoren: Yildiz Kasimay, Artjom Poljakow, Yadullah Duman
+
 using namespace std;
 using namespace std::chrono;
 
 void Lucy::process(const Parameters &params, const Image &src, Image &dst)
 {
-
+    // ermittle Startzeit fuer Laufzeitmessung
     auto t1 = high_resolution_clock::now();
 
     dst = src;
+
+    // initialisiere noetigen Parameter
     const int n = params.lucyIterations;
     const int height = src.height();
     const int width = src.width();
     const int k = 51;
+
     Image u = Image(height, width);
     Image b = Image(height, width);
     Image d = Image(height, width);
@@ -32,20 +37,19 @@ void Lucy::process(const Parameters &params, const Image &src, Image &dst)
                     b[y][x] = Pixel(255.0 / k, 255.0 / k, 255.0 / k);
                     continue;
                 }
-                b[y][x] = kernelOp(k, dst, y, x);
-
+                b[y][x] = calcPixel(k, dst, y, x);
             }
         }
 
         // -------------------- DIVISION -------------------- //
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                const Pixel &f1 = src[y][x];
-                const Pixel &f2 = b[y][x];
+                const Pixel &dividend = src[y][x];
+                const Pixel &divisor = b[y][x];
 
-                red = (f1.r / f2.r > 255) ? 255 : f1.r / f2.r;
-                green = (f1.g / f2.g > 255) ? 255 : f1.g / f2.g;
-                blue = (f1.b / f2.b > 255) ? 255 : f1.b / f2.b;
+                red   = (dividend.r / divisor.r > 255) ? 255 : dividend.r / divisor.r;
+                green = (dividend.g / divisor.g > 255) ? 255 : dividend.g / divisor.g;
+                blue  = (dividend.b / divisor.b > 255) ? 255 : dividend.b / divisor.b;
                 u[y][x] = Pixel(red, green, blue);
             }
         }
@@ -57,37 +61,45 @@ void Lucy::process(const Parameters &params, const Image &src, Image &dst)
                     d[y][x] = Pixel(255.0 / k, 255.0 / k, 255.0 / k);
                     continue;
                 }
-                d[y][x] = kernelOp(k, u, y, x);
+                d[y][x] = calcPixel(k, u, y, x);
             }
         }
 
         // -------------------- MULTIPLICATION -------------------- //
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                const Pixel &f1 = dst[y][x];
-                const Pixel &f2 = d[y][x];
+                const Pixel &multiplikand = dst[y][x];
+                const Pixel &multiplikator = d[y][x];
 
-                red = (f1.r * f2.r > 255) ? 255 : f1.r * f2.r;
-                green = (f1.g * f2.g > 255) ? 255 : f1.g * f2.g;
-                blue = (f1.b * f2.b > 255) ? 255 : f1.b * f2.b;
+                red   = (multiplikand.r * multiplikator.r > 255) ? 255 : multiplikand.r * multiplikator.r;
+                green = (multiplikand.g * multiplikator.g > 255) ? 255 : multiplikand.g * multiplikator.g;
+                blue  = (multiplikand.b * multiplikator.b > 255) ? 255 : multiplikand.b * multiplikator.b;
                 dst[y][x] = Pixel(red, green, blue);
             }
         }
     }
 
-   auto t2 = high_resolution_clock::now();
-   auto elapsed = duration_cast<milliseconds>(t2 - t1);
-   printf("\n *********** FINISHED *********** \n");
-   printf("ALGORITHM: RICHARDSON-LUCY\n");
-   cout << "RUNTIME: " << elapsed.count() << " ms" << endl;
-   cout << endl;
+    // Laufzeitmessung = Endzeit - Startzeit
+    auto t2 = high_resolution_clock::now();
+    auto elapsed = duration_cast<milliseconds>(t2 - t1);
+    printf("\n *********** FINISHED *********** \n");
+    printf("ALGORITHM: RICHARDSON-LUCY\n");
+    cout << "RUNTIME: " << elapsed.count() << " ms" << endl;
+    cout << endl;
 }
 
+/**
+ * prueft, ob wir noch in der gueltigen Range sind, d.h.
+ * ob links und rechts vom Pixel noch 25 weitere Pixel sind
+ */
 bool Lucy::isInRange(int i, const int width) {
     return !(i - 25 < 0 || i + 25 > width);
 }
 
-Pixel Lucy::kernelOp(double k, const Image &img, int y, int x) {
+/**
+ * wendet den Kernel auf den Pixel an
+ */
+Pixel Lucy::calcPixel(double k, const Image &img, int y, int x) {
     double r = 0.0;
     double g = 0.0;
     double b = 0.0;

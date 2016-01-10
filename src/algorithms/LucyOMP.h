@@ -3,6 +3,8 @@
 
 #include "Algorithm.h"
 
+// Autoren: Yildiz Kasimay, Artjom Poljakow, Yadullah Duman
+
 class LucyOMP : public Algorithm
 {
 public:
@@ -10,7 +12,7 @@ public:
 
 private:
     bool isInRange(int i, const int width);
-    Pixel kernelOp(double k, const Image &img, int y, int x);
+    Pixel calcPixel(double k, const Image &img, int y, int x);
 };
 
 #endif

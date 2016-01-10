@@ -3,6 +3,8 @@
 
 #include <QObject>
 
+// Autoren: Yildiz Kasimay, Artjom Poljakow, Yadullah Duman
+
 class Parameters : public QObject
 {
 Q_OBJECT
@@ -21,9 +23,6 @@ public:
     int tau;
 
 public slots:
-    void setParam1(bool value) { param1 = value; }
-    void setParam2(const QString &value) { param2 = value.toInt(); }
-    void setParam3(const QString &value) { param3 = value.toDouble(); }
     void setLucyIterations(const QString &value) { lucyIterations = value.toDouble(); }
     void setKernelSize(const QString &value) { kernelSize = value.toInt(); }
     void setSigma_D(const QString &value) { sigma_d = value.toInt(); }

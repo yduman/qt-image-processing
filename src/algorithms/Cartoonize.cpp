@@ -3,6 +3,8 @@
 #include <chrono>
 #include <iostream>
 
+// Autoren: Yildiz Kasimay, Artjom Poljakow, Yadullah Duman
+
 using namespace std;
 using namespace std::chrono;
 
@@ -16,9 +18,10 @@ int t;
 //************************************************************************
 void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
 {
+   // ermittle Startzeit
    auto t1 = high_resolution_clock::now();
 
-   // get vars
+   // initialisiere Parameter
    sig_r = params.sigma_r;
    sig_d = params.sigma_d;
    kSize = params.kernelSize;
@@ -26,10 +29,12 @@ void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
 
    dst = src;
 
+   // Algorithmus
    Image bilateral = bilFilter(src);
-   Image binary = binTraverse(src);
-   dst = cartFilter(bilateral, binary);
+   Image binary = binImage(bilateral);
+   dst = cartoonizeImage(bilateral, binary);
 
+   // berechne Laufzeit = Endzeit - Startzeit
    auto t2 = high_resolution_clock::now();
    auto elapsed = duration_cast<milliseconds>(t2 - t1);
    printf("\n *********** FINISHED *********** \n");
@@ -38,59 +43,84 @@ void Cartoonize::process(const Parameters &params, const Image &src, Image &dst)
    cout << endl;
 }
 
+//************************************************************************
+// BILATERAL-FILTER
+//************************************************************************
+
+/**
+ * Hilfsmethode um eine Kernelmatrix zu generieren
+ */
 double** Cartoonize::createMatrix(int height, int width) {
-   double* row = (double*)calloc(height * width, sizeof(double));
-   double** ret = (double**)calloc(height, sizeof(double));
+    double* row = (double*)calloc(height * width, sizeof(double));
+    double** ret = (double**)calloc(height, sizeof(double));
 
-   for (int i = 0; i < height; ++i) {
-      ret[i] = row + i * width;
-   }
+    for (int i = 0; i < height; ++i) {
+        ret[i] = row + i * width;
+    }
 
-   return ret;
+    return ret;
 }
 
-//************************************************************************
-// BILATERAL
-//************************************************************************
-
+/**
+ * euklidische Norm
+ */
 double Cartoonize::euklid(int r, int g, int b) {
    return sqrt(pow(r, 2) + pow(g, 2) + pow(b, 2));
 }
 
-double Cartoonize::calcDomain(int y, int x, int k, int l) {
-   double summand_lhs = pow((y - k), 2);
-   double summand_rhs = pow((x - l), 2);
-   double dividend = 2 * pow(sig_d, 2);
-   double result = -(summand_lhs + summand_rhs) / dividend;
+/**
+ * cDomain Formel
+ * y = i
+ * x = j
+ */
+double Cartoonize::cDomain(int y, int x, int k, int l) {
+   double summand_lhs = pow((y - k), 2);    // (i - k)²
+   double summand_rhs = pow((x - l), 2);    // (j - l)²
+   double denominator = 2 * pow(sig_d, 2);  // Nenner
+   double result = -(summand_lhs + summand_rhs) / denominator;
 
    return exp(result);
 }
 
-double Cartoonize::calcEdge(const Image &img, int y, int x, int k, int l) {
+/**
+ * cEdge Formel
+ * y = i
+ * x = j
+ */
+double Cartoonize::cEdge(const Image &img, int y, int x, int k, int l) {
    double r, g, b;
-   const Pixel &pix1 = img[y][x];
-   const Pixel &pix2 = img[k][l];
+   const Pixel &f_ij = img[y][x];
+   const Pixel &f_kl = img[k][l];
 
-   r = pix1.r - pix2.r;
-   g = pix1.g - pix2.g;
-   b = pix1.b - pix2.b;
+   r = f_ij.r - f_kl.r;
+   g = f_ij.g - f_kl.g;
+   b = f_ij.b - f_kl.b;
 
-   double numerator = pow(euklid(r, g, b), 2);
-   double denominator = 2 * pow(sig_r, 2);
+   double numerator = pow(euklid(r, g, b), 2);  // ||f(i,j) - f(k,l)||²
+   double denominator = 2 * pow(sig_r, 2);      // Nenner
    double result = -(numerator)/denominator;
 
    return exp(result);
 }
 
-double Cartoonize::calcKernelField(const Image &img, int y, int x, int k, int l) {
-   return calcDomain(y, x, k, l) * calcEdge(img, y, x, k, l);
+/**
+ * w_ijkl Formel
+ */
+double Cartoonize::weight(const Image &img, int y, int x, int k, int l) {
+   return cDomain(y, x, k, l) * cEdge(img, y, x, k, l);
 }
 
+/**
+ * prueft, ob wir noch in der gueltigen Range sind
+ */
 bool Cartoonize::isInRange(int size, int y, int x, const int height, const int width) {
    return !((y - size / 2 < 0 || y + size / 2 >= height) || (x - size / 2 < 0 || x + size / 2 >= width));
 }
 
-double** Cartoonize::initKernel(const Image &img, int y, int x) {
+/**
+ * initialisiere w_ijkl-Kernel
+ */
+double** Cartoonize::initWeightKernel(const Image &img, int y, int x) {
    int height = 0;
    int width = 0;
    int range = kSize / 2;
@@ -99,7 +129,7 @@ double** Cartoonize::initKernel(const Image &img, int y, int x) {
 
    for (int i = y - range; i < y + range; ++i) {
       for (int j = x - range; j < x + range; ++j) {
-         kernel[height][width] = calcKernelField(img, y, x, i, j);
+         kernel[height][width] = weight(img, y, x, i, j);
          width++;
       }
       width = 0;
@@ -108,32 +138,43 @@ double** Cartoonize::initKernel(const Image &img, int y, int x) {
    return kernel;
 }
 
-Pixel Cartoonize::bilKernel(const Image &img, int y, int x) {
-   double** kernel = initKernel(img, y, x);
-   double numerator_R = 0.0;
-   double numerator_G = 0.0;
-   double numerator_B = 0.0;
-   double denominator = 0.0;
-   int height = 0;
-   int width = 0;
-   int range = kSize / 2;
+/**
+ * Berechnung eines Ausgabepixels beim bilateralen Filtern
+ * g_ij-Kernel
+ */
+Pixel Cartoonize::calcPixelBilFilter(const Image &img, int y, int x) {
+    double** kernel = initWeightKernel(img, y, x);
 
-   for (int i = y - range; i < y + range; ++i) {
-      for (int j = x - range; j < x + range; ++j) {
-         const Pixel &pix = img[i][j];
-         numerator_R += kernel[height][width] * pix.r;
-         numerator_G += kernel[height][width] * pix.g;
-         numerator_B += kernel[height][width] * pix.b;
-         denominator += kernel[height][width];
+    double numerator_R = 0.0;
+    double numerator_G = 0.0;
+    double numerator_B = 0.0;
 
-         width++;
-      }
-      width = 0;
-      height++;
-   }
-   return Pixel(numerator_R/denominator, numerator_G/denominator, numerator_B/denominator);
+    double denominator = 0.0;
+
+    int height = 0;
+    int width = 0;
+    int range = kSize / 2;
+
+    for (int i = y - range; i < y + range; ++i) {
+       for (int j = x - range; j < x + range; ++j) {
+           const Pixel &pix = img[i][j];
+
+           numerator_R += kernel[height][width] * pix.r;
+           numerator_G += kernel[height][width] * pix.g;
+           numerator_B += kernel[height][width] * pix.b;
+           denominator += kernel[height][width];
+
+           width++;
+       }
+        width = 0;
+        height++;
+    }
+    return Pixel(numerator_R/denominator, numerator_G/denominator, numerator_B/denominator);
 }
 
+/**
+ * Prozess des Bilateralfilters
+ */
 Image Cartoonize::bilFilter(const Image &img) {
    const int height = img.height();
    const int width = img.width();
@@ -145,7 +186,7 @@ Image Cartoonize::bilFilter(const Image &img) {
             result[y][x] = img[y][x];
             continue;
          } else {
-            result[y][x] = bilKernel(img, y, x);
+            result[y][x] = calcPixelBilFilter(img, y, x);
          }
       }
    }
@@ -154,9 +195,12 @@ Image Cartoonize::bilFilter(const Image &img) {
 }
 
 //************************************************************************
-// BINARY
+// BINARY-FILTER
 //************************************************************************
 
+/**
+ * Berechnung der Kantenstaerke pixelweise
+ */
 Pixel Cartoonize::calcEdgeStrength(int y, int x, Image &imgX, Image &imgY) {
    double r, g, b;
    const Pixel &pix_X = imgX[y][x];
@@ -166,13 +210,12 @@ Pixel Cartoonize::calcEdgeStrength(int y, int x, Image &imgX, Image &imgY) {
    g = sqrt(pow(pix_X.g, 2) + pow(pix_Y.g, 2));
    b = sqrt(pow(pix_X.b, 2) + pow(pix_Y.b, 2));
 
-   r = adjustPixelCol(r);
-   g = adjustPixelCol(g);
-   b = adjustPixelCol(b);
-
    return Pixel(r, g, b);
 }
 
+/**
+ * Berechnung der Kantendetektion pixelweise
+ */
 Pixel Cartoonize::calcEdgeDetection(int y, int x, Image &img) {
    double r, g, b;
    const Pixel &pix = img[y][x];
@@ -184,6 +227,9 @@ Pixel Cartoonize::calcEdgeDetection(int y, int x, Image &img) {
    return Pixel(r, g, b);
 }
 
+/**
+ * Berechnung der Kantenstaerke
+ */
 Image Cartoonize::edgeStrength(Image &imgX, Image &imgY) {
    const int height = min(imgX.height(), imgY.height());
    const int width  = min(imgX.width(), imgY.width());
@@ -197,6 +243,9 @@ Image Cartoonize::edgeStrength(Image &imgX, Image &imgY) {
    return result;
 }
 
+/**
+ * Berechnung der Kantendetektion
+ */
 Image Cartoonize::edgeDetection(Image &img) {
    const int height = img.height();
    const int width = img.width();
@@ -210,6 +259,9 @@ Image Cartoonize::edgeDetection(Image &img) {
    return result;
 }
 
+/**
+ * getter fuer den Sobelkernel in x- und y-Richtung
+ */
 double** Cartoonize::getSobelKernel(char c) {
    double** kernel = createMatrix(3, 3);
 
@@ -229,64 +281,44 @@ double** Cartoonize::getSobelKernel(char c) {
    return kernel;
 }
 
-double** Cartoonize::getBlurKernel() {
-   double** kernel = createMatrix(3, 3);
+/**
+ * Berechnung eines Ausgabepixel fuer das Binaerkantenbild
+ */
+Pixel Cartoonize::calcPixelBinFilter(const Image &img, int y, int x, char op) {
+    int height = 0;
+    int width  = 0;
 
-   kernel[0][0] = 1.0 / 16.0; kernel[0][1] = 2.0 / 16.0; kernel[0][2] = 1.0 / 16.0;
-   kernel[1][0] = 2.0 / 16.0; kernel[1][1] = 4.0 / 16.0; kernel[1][2] = 2.0 / 16.0;
-   kernel[2][0] = 1.0 / 16.0; kernel[2][1] = 2.0 / 16.0; kernel[2][2] = 1.0 / 16.0;
+    double r = 0.0;
+    double g = 0.0;
+    double b = 0.0;
+    double** kernel;
 
-   return kernel;
+    switch (op) {
+       case 'x': kernel = getSobelKernel('x');
+            break;
+       case 'y': kernel = getSobelKernel('y');
+            break;
+       default: printf("Error in function \"binKernel\" --> input char: %c\n", op);
+    }
+
+    for (int i = y - 1; i <= y + 1; ++i) {
+       for (int j = x - 1; j <= x + 1; ++j) {
+          const Pixel &pix = img[i][j];
+          r += kernel[height][width] * pix.r;
+          g += kernel[height][width] * pix.g;
+          b += kernel[height][width] * pix.b;
+
+          width++;
+       }
+       width = 0;
+       height++;
+    }
+    return Pixel(r, g, b);
 }
 
-double Cartoonize::adjustPixelCol(double pixel) {
-   if (pixel > 255.0)
-      return 255.0;
-
-   if (pixel < 0.0)
-      return 0.0;
-
-   return pixel;
-}
-
-Pixel Cartoonize::binKernel(const Image &img, int y, int x, char op) {
-   int height = 0;
-   int width  = 0;
-   double r = 0.0;
-   double g = 0.0;
-   double b = 0.0;
-   double** kernel;
-
-   switch (op) {
-      case 'b': kernel = getBlurKernel();
-           break;
-      case 'x': kernel = getSobelKernel('x');
-           break;
-      case 'y': kernel = getSobelKernel('y');
-           break;
-      default: printf("Error in function \"binKernel\" --> input char: %c\n", op);
-   }
-
-   for (int i = y - 1; i <= y + 1; ++i) {
-      for (int j = x - 1; j <= x + 1; ++j) {
-         const Pixel &pix = img[i][j];
-         r += kernel[height][width] * pix.r;
-         g += kernel[height][width] * pix.g;
-         b += kernel[height][width] * pix.b;
-
-         width++;
-      }
-      width = 0;
-      height++;
-   }
-
-   r = adjustPixelCol(r);
-   g = adjustPixelCol(g);
-   b = adjustPixelCol(b);
-
-   return Pixel(r, g, b);
-}
-
+/**
+ * Binaerbildfilter
+ */
 Image Cartoonize::binFilter(const Image &img, char op) {
    const int height = img.height();
    const int width = img.width();
@@ -298,34 +330,41 @@ Image Cartoonize::binFilter(const Image &img, char op) {
             result[y][x] = img[y][x];
             continue;
          } else {
-            result[y][x] = binKernel(img, y, x, op);
+            result[y][x] = calcPixelBinFilter(img, y, x, op);
          }
       }
    }
    return result;
 }
 
-Image Cartoonize::binTraverse(const Image &img) {
-//   Image g;
+/**
+ * Generierung eines Binaerkantenbildes
+ */
+Image Cartoonize::binImage(const Image &img) {
    Image gX;
    Image gY;
    Image G;
    Image G_t;
 
-//   g   = binFilter(img, 'b');    // blurring --> 'b'
-   gX  = binFilter(img, 'x');      // Sobel_X
-   gY  = binFilter(img, 'y');      // Sobel Y
-   G   = edgeStrength(gX, gY);
-   G_t = edgeDetection(G);
+   gX  = binFilter(img, 'x');   // Binaerfilter mit Sobelkernel in x-Richung
+   gY  = binFilter(img, 'y');   // Binaerfilter mit Sobelkernel in y-Richung
+   G   = edgeStrength(gX, gY);  // Berechnung der Kantenstaerke
+   G_t = edgeDetection(G);      // Berechnung der Kantendetektion
 
    return G_t;
 }
 
 //************************************************************************
-// CARTOONIZE
+// CARTOONIZE-FILTER
 //************************************************************************
 
-Pixel Cartoonize::comp(const Pixel &pixBilateral, const Pixel &pixBinary) {
+/**
+ * Alle Kanten des Binaerkantenbildes werden direkt in das bilateral
+ * gefilterte Bild ueberfuehrt, d.h.
+ * jeder zu einer Kante gehoerende Pixel in der Maske des Binaerkantenbildes,
+ * wird im bilateral gefilterten Bild auf schwarz gesetzt
+ */
+Pixel Cartoonize::calcPixelCartFilter(const Pixel &pixBilateral, const Pixel &pixBinary) {
    double r, g, b;
    r = pixBinary.r;
    g = pixBinary.g;
@@ -337,7 +376,7 @@ Pixel Cartoonize::comp(const Pixel &pixBilateral, const Pixel &pixBinary) {
       return pixBilateral;
 }
 
-Image Cartoonize::cartFilter(Image &bilateral, Image &binary) {
+Image Cartoonize::cartoonizeImage(Image &bilateral, Image &binary) {
    const int height = min(bilateral.height(), binary.height());
    const int width = min(bilateral.width(), binary.width());
    Image result = Image(height, width);
@@ -346,7 +385,7 @@ Image Cartoonize::cartFilter(Image &bilateral, Image &binary) {
       for (int x = 0; x < width; ++x) {
          const Pixel &pixBil = bilateral[y][x];
          const Pixel &pixBin = binary[y][x];
-         result[y][x] = comp(pixBil, pixBin);
+         result[y][x] = calcPixelCartFilter(pixBil, pixBin);
       }
    }
    return result;
